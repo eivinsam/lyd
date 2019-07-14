@@ -183,18 +183,79 @@ struct sine_osc
 	fixedcx gamma;
 	fixedcx phi;
 
+	sine_osc() : gamma{ 0,0 }, phi{ 0, 0 } { }
 	sine_osc(fixed omega, fixed gain = 0.9999) :
-		gamma{ iexp(omega)*gain }, phi{ 0, -1 } { }
+		gamma{ iexp(omega)*gain }, phi{ 1, 0 } { }
 
 	void render(float* buffer)
 	{
 		for (int i = 0; i < beat_len; ++i)
 		{
-			buffer[i] = float(phi.re);
+			buffer[i] += float(phi.im);
 			phi = phi * gamma;
 		}
 	}
+
+	void strike(note n, fixed g)
+	{
+		gamma = iexp(omega(n))*g;
+		phi = { 1, 0 };
+	}
 };
+
+
+constexpr int to_relf(double rf) { return int(rf * 8); }
+struct drum
+{
+	static constexpr int mode_count = 12;
+
+	 //"ideal"
+	static constexpr int relfs[mode_count] =
+	{
+		to_relf(1.00), to_relf(2.30), to_relf(3.60), // 0,1 - 0,2 - 0,3
+		to_relf(1.59), to_relf(2.14), to_relf(2.63), // 1,1 - 2,1 - 3,1
+		to_relf(3.16), to_relf(3.65), to_relf(4.15), // 4,1 - 5,1 - 6,1
+		to_relf(2.92), to_relf(3.49), to_relf(4.06)  // 1,2 - 2,2 - 3,2
+	};
+	// some tom
+	//static constexpr int relfs[mode_count] =
+	//{
+	//	to_relf(1.00), to_relf(1.85), to_relf(2.10), to_relf(2.29),
+	//	to_relf(3.01), to_relf(3.23), to_relf(3.44), to_relf(3.50),
+	//	to_relf(3.60), to_relf(3.65), to_relf(4.06), to_relf(4.15)
+	//};
+
+
+	sine_osc modes[mode_count];
+	const fixed* mode_amps;
+
+	drum(const fixed* mode_amps) : mode_amps(mode_amps) { }
+
+	void render(float* buffer)
+	{
+		for (int i = 0; i < mode_count; ++i)
+			modes[i].render(buffer);
+	}
+
+	void strike(note n, fixed a)
+	{
+		auto omega = ::omega(n) / 8;
+		for (int i = 0; i < mode_count; ++i)
+		{
+			modes[i].gamma = iexp(omega * relfs[i]) * 0.9999;
+			modes[i].phi = { a/(i+1), 0 };
+		}
+	}
+};
+
+static constexpr fixed test_modes[drum::mode_count] =
+{
+	0, 0, 0, 
+	0.8, 0.4, 0.3,  
+	0.2, 0.15, 0.1,
+	0, 0, 0,
+};
+
 
 static constexpr fixed piano_harm[] = 
 {
@@ -266,15 +327,21 @@ void play(float* buffer, int length, int sample_freq);
 
 int __cdecl main()
 {
-	constexpr int buffer_len = beat_len * pat_len * block_count;
+	constexpr int buffer_len = beat_len * pat_len * (block_count+1);
 
 	float* const buffer = (float*)alloc(buffer_len * sizeof(float));
 	float* const step_buffer = (float*)alloc(beat_len*sizeof(float));
 	float* out = buffer;
 
+	for (int i = 0; i < beat_len*pat_len; ++i)
+		out[i] = 0;
+	out += beat_len * pat_len;
+
 	harmonics osc1{ piano_harm, (2 * 3.141592f * 440) / sample_freq };
 	harmonics osc2{ piano_harm, (2 * 3.141592f * 440) / sample_freq };
 	harmonics osc3{ piano_harm, (2 * 3.141592f * 440) / sample_freq };
+
+	drum drum1(test_modes);
 
 	osc1.gain = 0.99995;
 	osc1.ogain = 0.999999;
@@ -289,13 +356,17 @@ int __cdecl main()
 		for (int si = 0; si < pat_len; ++si)
 		{
 			if (auto n = pats[0][si]; n != NN)
-				osc1.strike(n, 0.6);
+				osc1.strike(n, 0.3);
 			if (auto n = pats[1][si]; n != NN)
-				osc2.strike(n, 0.6);
+				osc2.strike(n, 0.3);
+			if (!(si & 3))
+				drum1.strike(NN + 48, 0.7);
 			osc1.render(step_buffer);
 			for (int i = 0; i < beat_len; ++i) out[i] = step_buffer[i];
 			osc2.render(step_buffer);
 			for (int i = 0; i < beat_len; ++i) out[i] += step_buffer[i];
+			drum1.render(out);
+
 			out += beat_len;
 		}
 	}
