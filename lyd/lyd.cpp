@@ -1,153 +1,67 @@
 #include <type_traits>
 
-constexpr double pi = 3.1415926535;
-
-template <class T, class R>
-using if_integral_t = std::enable_if_t<std::is_integral_v<T>, R>;
-template <class T, class R>
-using if_arithmetic_t = std::enable_if_t<std::is_arithmetic_v<T>, R>;
-
-//enum class fixed : int { zero, half = 1<<29, one = 1<<30, two = 1<<31 };
-//
-//constexpr int code(fixed x) { return static_cast<int>(x); }
-//
-//
-//constexpr fixed fix(double x) { return static_cast<fixed>(static_cast<int>(x*code(fixed::one))); }
-//constexpr float unfix(fixed x) { return code(x) / float(code(fixed::one)); }
-//
-//constexpr fixed operator+(fixed x) { return x; }
-//constexpr fixed operator-(fixed x) { return static_cast<fixed>(-code(x)); }
-//
-//constexpr fixed operator+(fixed a, fixed b) { return static_cast<fixed>(code(a) + code(b)); }
-//constexpr fixed operator-(fixed a, fixed b) { return static_cast<fixed>(code(a) - code(b)); }
-//
-//template <class T> constexpr if_integral_t<T, fixed> operator*(T a, fixed b) { return static_cast<fixed>(a * code(b)); }
-//template <class T> constexpr if_integral_t<T, fixed> operator*(fixed a, T b) { return static_cast<fixed>(code(a) * b); }
-//template <class T> constexpr if_integral_t<T, fixed> operator/(fixed a, T b) { return static_cast<fixed>(code(a) / b); }
-//
-//constexpr fixed operator*(fixed a, fixed b)
-//{
-//	return static_cast<fixed>((static_cast<long long>(a) * static_cast<long long>(b)) >> 30);
-//}
-
-class fixed
-{
-	int _code = 0;
-	static constexpr struct {} _from_code = {};
-
-	constexpr fixed(decltype(_from_code), int c) : _code(c) { }
-public:
-	constexpr fixed(int c) : _code(c<<30) { }
-	constexpr fixed(double x) : _code(int(x*(1<<30))) { }
-	constexpr fixed(float x) : _code(int(x*(1<<30))) { }
-
-	friend constexpr int code(fixed x) { return x._code; }
-	static constexpr fixed from_code(int c) { return { _from_code, c }; }
-
-	explicit constexpr operator float() const { return float(_code) / (1 << 30); }
-
-	constexpr fixed operator-() const { return from_code( -_code ); }
-	constexpr fixed operator+() const { return *this; }
-
-	friend constexpr fixed operator+(fixed a, fixed b) { return from_code( a._code + b._code ); }
-	friend constexpr fixed operator-(fixed a, fixed b) { return from_code( a._code - b._code ); }
-	friend constexpr fixed operator*(fixed a, fixed b)
-	{
-		return from_code( (static_cast<long long>(a._code) * static_cast<long long>(b._code))>>30 );
-	}
-	friend constexpr fixed operator/(fixed a, fixed b)
-	{
-		return (float(a) / float(b));
-	}
-	template <class T>
-	friend constexpr if_integral_t<T, fixed> operator*(T a, fixed b) { return from_code(a*b._code); }
-	template <class T>
-	friend constexpr if_integral_t<T, fixed> operator*(fixed a, T b) { return from_code(a._code*b); }
-	template <class T>
-	friend constexpr if_integral_t<T, fixed> operator/(fixed a, T b) { return from_code(a._code/b); }
-};
-
-struct fixedcx
-{
-	fixed re;
-	fixed im;
-};
-
-fixedcx iexp(const fixed im)
-{
-	fixed p = im;
-	fixedcx r = { 1, 0 };
-	for (char k = 1; k < 3; k+=2)
-	{
-		r.im = r.im + p;
-		p = -im * p / (k + 1);
-		r.re = r.re + p;
-		p = +im * p / (k + 2);
-	}
-	return r;
-}
-
-
-template <class T>
-constexpr if_arithmetic_t<T, fixedcx> operator*(T a, fixedcx b) { return { a * b.re, a * b.im }; }
-template <class T>
-constexpr if_arithmetic_t<T, fixedcx> operator*(fixedcx a, T b) { return { a.re * b, a.im * b }; }
-template <class T>
-constexpr if_arithmetic_t<T, fixedcx> operator/(fixedcx a, T b) { return { a.re / b, a.im / b }; }
-
-
-constexpr fixedcx operator*(fixedcx a, fixedcx b)
-{
-	return { a.re*b.re - a.im*b.im, a.re*b.im + a.im*b.re };
-}
-constexpr fixedcx operator*(fixed a, fixedcx b) { return { a*b.re, a*b.im }; }
-constexpr fixedcx operator*(fixedcx a, fixed b) { return { a.re*b, a.im*b }; }
-constexpr fixedcx operator/(fixedcx a, fixed b) { return { a.re/b, a.im/b }; }
-
-enum class note : char { };
-constexpr note NN = note(0);
-
-constexpr note operator+(note a, char b) { return note(char(a) + b); }
+#include "fixed.h"
 
 constexpr int sample_freq = 48000;
-constexpr int beat_len = (48000*60)/(120*4);
+constexpr int beat_len = (48000 * 60) / (120 * 4);
 //constexpr float bpm = sample_frequency / 4.0f / step_length;
 constexpr int pat_len = 16;
 
+enum class note : char { none };
 
-constexpr note key = NN + 48;
+inline bool is_note(note n) { return n != note::none; }
 
-static constexpr note patterns[][pat_len] =
+constexpr note operator+(note a, char b) { return note(char(a) + b); }
+
+namespace melody 
 {
-{ key+0,NN,NN,NN, key+2,NN,NN,NN, key+4,NN,NN,NN, key+5,NN,NN,NN },
-{ key+7,NN,NN,NN, NN,NN,NN,NN, key+7,NN,NN,NN, NN,NN,NN,NN },
-{ key+9,NN,NN,NN, key+9,NN,NN,NN, key+9,NN,NN,NN, key+9,NN,NN,NN },
-{ key+7,NN,NN,NN, NN,NN,NN,NN, NN,NN,NN,NN, NN,NN,NN,NN },
-{ key+5,NN,NN,NN, key+5,NN,NN,NN, key+5,NN,NN,NN, key+5,NN,NN,NN },
-{ key+4,NN,NN,NN, NN,NN,NN,NN, key+4,NN,NN,NN, NN,NN,NN,NN },
-{ key+2,NN,NN,NN, key+2,NN,NN,NN, key+2,NN,NN,NN, key+2,NN,NN,NN },
-{ key,NN,NN,NN, NN,NN,NN,NN, NN,NN,NN,NN, NN, NN,NN,NN },
-{ key + (-12),NN,NN,key + (-12), NN,NN,key + (-12),NN, NN,key + (-12),NN,NN, key + (-12),NN,key + (-12),NN },
-{ key + (-5),NN,NN,key + (-5), NN,NN,key + (-5),NN, NN,key + (-5),NN,NN, key + (-5),NN,key + (-5),NN },
-{ key + (-3),NN,NN,key + (-3), NN,NN,key + (-3),NN, NN,key + (-3),NN,NN, key + (-3),NN,key + (-3),NN },
-{ key + (-5),NN,NN,NN, NN,NN,key + (-5),NN, NN,NN,NN,NN, key + (-5),NN,NN,NN },
-{ key + (-7),NN,NN,key + (-7), NN,NN,key + (-7),NN, NN,key + (-7),NN,NN, key + (-7),NN,key + (-7),NN },
-{ key + (-8),NN,NN,key + (-8), NN,NN,key + (-8),NN, NN,key + (-8),NN,NN, key + (-8),NN,key + (-8),NN },
-{ key + (-10),NN,NN,key + (-10), NN,NN,key + (-10),NN, NN,key + (-10),NN,NN, key + (-10),NN,key + (-10),key + (-10) },
-{ key + (-12),NN,NN,NN, NN,NN,key + (-12),NN, NN,NN,NN,NN, NN, NN,NN,NN }
-};
+	constexpr note __ = note::none;
 
-constexpr int track_count = 2;
+	constexpr note key = __ + 48;
+	constexpr note S0 = key + 0, s0 = S0 + (-12);
+	constexpr note S1 = key + 2, s1 = S1 + (-12);
+	constexpr note S2 = key + 4, s2 = S2 + (-12);
+	constexpr note S3 = key + 5, s3 = S3 + (-12);
+	constexpr note S4 = key + 7, s4 = S4 + (-12);
+	constexpr note S5 = key + 9, s5 = S5 + (-12);
+
+
+	static constexpr note patterns[][pat_len] =
+	{
+	{ __,__,__,__, __,__,__,__, __,__,__,__, __,__,__,__ },
+	{ s0,__,__,__, __,__,__,__, __,__,s0,__, __,__,__,__ },
+	{ S0,__,__,__, S1,__,__,__, S2,__,__,__, S3,__,__,__ },
+	{ S4,__,__,__, __,__,__,__, S4,__,__,__, __,__,__,__ },
+	{ S5,__,__,__, S5,__,__,__, S5,__,__,__, S5,__,__,__ },
+	{ S4,__,__,__, __,__,__,__, __,__,__,__, __,__,__,__ },
+	{ S3,__,__,__, S3,__,__,__, S3,__,__,__, S3,__,__,__ },
+	{ S2,__,__,__, __,__,__,__, S2,__,__,__, __,__,__,__ },
+	{ S1,__,__,__, S1,__,__,__, S1,__,__,__, S1,__,__,__ },
+	{ S0,__,__,__, __,__,__,__, __,__,__,__, __,__,__,__ },
+	{ s0,__,__,s0, __,__,s0,__, __,s0,__,__, s0,__,s0,__ },
+	{ s4,__,__,s4, __,__,s4,__, __,s4,__,__, s4,__,s4,__ },
+	{ s5,__,__,s5, __,__,s5,__, __,s5,__,__, s5,__,s5,__ },
+	{ s4,__,__,__, __,__,s4,__, __,__,__,__, s4,__,__,__ },
+	{ s3,__,__,s3, __,__,s3,__, __,s3,__,__, s3,__,s3,__ },
+	{ s2,__,__,s2, __,__,s2,__, __,s2,__,__, s2,__,s2,__ },
+	{ s1,__,__,s1, __,__,s1,__, __,s1,__,__, s1,__,s1,s1 },
+	{ s0,__,__,__, __,__,s0,__, __,__,__,__, __,__,__,__ },
+	};
+
+}
+
+constexpr int track_count = 3;
 static constexpr char tracks[][track_count] =
 {
-{ 0, 8 },
-{ 1, 9 },
-{ 2, 10 },
-{ 3, 11 },
-{ 4, 12 },
-{ 5, 13 },
-{ 6, 14 },
-{ 7, 15 }
+{ 0, 0, 0 },
+{ 2, 10, 1 },
+{ 3, 11, 1 },
+{ 4, 12, 1 },
+{ 5, 13, 1 },
+{ 6, 14, 1 },
+{ 7, 15, 1 },
+{ 8, 16, 1 },
+{ 9, 17, 1 }
 };
 constexpr int block_count = sizeof(tracks) / track_count;
 
@@ -177,40 +91,50 @@ fixed omega(note n)
 
 
 
+struct instrument
+{
+	virtual fixed sample() = 0;
+	virtual void strike(note, fixed) = 0;
+};
 
-struct sine_osc
+
+struct sine_osc : instrument
 {
 	fixedcx gamma;
 	fixedcx phi;
 
-	sine_osc() : gamma{ 0,0 }, phi{ 0, 0 } { }
+	sine_osc() : gamma{ 0, 0 }, phi{ 0, 0 } {};
 	sine_osc(fixed omega, fixed gain = 0.9999) :
 		gamma{ iexp(omega)*gain }, phi{ 1, 0 } { }
 
-	void render(float* buffer)
+	fixed sample() final
 	{
-		for (int i = 0; i < beat_len; ++i)
-		{
-			buffer[i] += float(phi.im);
-			phi = phi * gamma;
-		}
+		const auto result = phi.im;
+		phi = phi * gamma;
+		return result;
 	}
 
-	void strike(note n, fixed g)
+	void strike(note n, fixed g) final
 	{
 		gamma = iexp(omega(n))*g;
 		phi = { 1, 0 };
 	}
 };
 
+struct gain_decay
+{
+	fixed gain;
+	fixed decay;
+};
 
-constexpr int to_relf(double rf) { return int(rf * 8); }
-struct drum
+constexpr int relf_scale = 3;
+constexpr fixed to_relf(double rf) { return rf / (1<<relf_scale); }
+struct drum : instrument
 {
 	static constexpr int mode_count = 12;
 
 	 //"ideal"
-	static constexpr int relfs[mode_count] =
+	static constexpr fixed relfs[mode_count] =
 	{
 		to_relf(1.00), to_relf(2.30), to_relf(3.60), // 0,1 - 0,2 - 0,3
 		to_relf(1.59), to_relf(2.14), to_relf(2.63), // 1,1 - 2,1 - 3,1
@@ -227,57 +151,59 @@ struct drum
 
 
 	sine_osc modes[mode_count];
-	const fixed* mode_amps;
+	const gain_decay* mode_amps;
 
-	drum(const fixed* mode_amps) : mode_amps(mode_amps) { }
+	drum(const gain_decay* mode_amps) : mode_amps(mode_amps) { }
 
-	void render(float* buffer)
+	fixed sample() final
 	{
+		fixed result = 0;
 		for (int i = 0; i < mode_count; ++i)
-			modes[i].render(buffer);
+			result += modes[i].sample();
+		return result;
 	}
 
-	void strike(note n, fixed a)
+	void strike(note n, fixed a) final
 	{
-		auto omega = ::omega(n) / 8;
+		auto omega = ::omega(n + 12*relf_scale);
 		for (int i = 0; i < mode_count; ++i)
 		{
-			modes[i].gamma = iexp(omega * relfs[i]) * 0.9999;
-			modes[i].phi = { a/(i+1), 0 };
+			modes[i].gamma = iexp(omega * relfs[i]) * mode_amps[i].decay;
+			modes[i].phi = { a*mode_amps[i].gain, 0 };
 		}
 	}
 };
 
-static constexpr fixed test_modes[drum::mode_count] =
+static constexpr gain_decay kick_modes[drum::mode_count] =
 {
-	0, 0, 0, 
-	0.8, 0.4, 0.3,  
-	0.2, 0.15, 0.1,
-	0, 0, 0,
+	{0, 0}, {0, 0}, {0, 0},
+	{1.00, 0.9995}, {0.27, 0.9995}, {0.14, 0.999},
+	{0.17, 0.999}, {0.10, 0.999}, {0.08, 0.999},
+	{0, 0}, {0, 0}, {0, 0},
 };
 
 
 static constexpr fixed piano_harm[] = 
 {
 	1,
-0.357502966619163,
-0.104782052192043,
-0.147622056118452,
-0.070653804126245,
-0.024190383307069,
-0.212747712905242,
-0.029630668517408,
-0.041665159624309,
-0.029096747816013,
-0.019835474772456,
-0.00630893568336 ,
-0.033565119676382,
-0.018308048320845,
-0.006728487501151,
-0.008106922102421
+	0.357502966619163,
+	0.104782052192043,
+	0.147622056118452,
+	0.070653804126245,
+	0.024190383307069,
+	0.212747712905242,
+	0.029630668517408,
+	0.041665159624309,
+	0.029096747816013,
+	0.019835474772456,
+	0.00630893568336 ,
+	0.033565119676382,
+	0.018308048320845,
+	0.006728487501151,
+	0.008106922102421
 };
 
-struct harmonics
+struct harmonics : instrument
 {
 	fixedcx gamma;
 	fixedcx phi;
@@ -291,32 +217,47 @@ struct harmonics
 	harmonics(const fixed* harm, fixed omega, fixed gain = 0.9999) : 
 		gamma{ iexp(omega) }, phi{ 1, 0 }, gain(gain), ampl(0), ogain(1), oampl(1), harm(harm) { }
 
-	void render(float* buffer)
+	fixed sample() final
 	{
-		for (int i = 0; i < beat_len; ++i)
+		fixed acc = harm[0] * phi.im;
+		auto ksi = phi;
+		auto psi = phi;
+		for (int k = 2; k < 17; ++k)
 		{
-			fixed acc = harm[0]*phi.im;
-			auto ksi = phi;
-			auto psi = phi;
-			for (int k = 2; k < 17; ++k)
-			{
-				psi = oampl*(psi * ksi);
-				acc = acc + harm[k-1]*psi.im;
-			}
-			buffer[i] = float(acc*ampl);
-			ampl = ampl * gain;
-			oampl = oampl * ogain;
-			phi = phi * gamma;
+			psi = oampl * (psi * ksi);
+			acc = acc + harm[k - 1] * psi.im;
 		}
+		const auto result = acc * ampl;
+		ampl = ampl * gain;
+		oampl = oampl * ogain;
+		phi = phi * gamma;
+		return result;
 	}
 
-	void strike(note n, fixed a)
+	void strike(note n, fixed a) final
 	{
 		gamma = iexp(omega(n))*0.9999999;
 		phi = { 1, 0 };
 		ampl = a;
 		oampl = 1;
 
+	}
+};
+
+struct lopass
+{
+	const fixed alpha;
+	fixed y1 = 0;
+
+	static constexpr fixed alpha_from_fc(double fc)
+	{
+		return 1 / (1 + sample_freq / (2*pi*fc));
+	}
+
+	fixed filter(fixed in)
+	{
+		y1 += alpha * (in - y1);
+		return y1;
 	}
 };
 
@@ -330,18 +271,28 @@ int __cdecl main()
 	constexpr int buffer_len = beat_len * pat_len * (block_count+1);
 
 	float* const buffer = (float*)alloc(buffer_len * sizeof(float));
-	float* const step_buffer = (float*)alloc(beat_len*sizeof(float));
 	float* out = buffer;
 
 	for (int i = 0; i < beat_len*pat_len; ++i)
 		out[i] = 0;
 	out += beat_len * pat_len;
 
+	lopass master_lopass = { lopass::alpha_from_fc(10000) };
+
 	harmonics osc1{ piano_harm, (2 * 3.141592f * 440) / sample_freq };
 	harmonics osc2{ piano_harm, (2 * 3.141592f * 440) / sample_freq };
-	harmonics osc3{ piano_harm, (2 * 3.141592f * 440) / sample_freq };
 
-	drum drum1(test_modes);
+	drum drum1(kick_modes);
+
+	instrument* const track_instrument[track_count] =
+	{
+		&osc1, &osc2, &drum1
+	};
+	const fixed track_gain[track_count] =
+	{
+		0.1, 0.1, 0.5
+	};
+
 
 	osc1.gain = 0.99995;
 	osc1.ogain = 0.999999;
@@ -350,24 +301,19 @@ int __cdecl main()
 
 	for (int bi = 0; bi < block_count; ++bi)
 	{
-		const note* pats[track_count];
-		for (int ti = 0; ti < track_count; ++ti)
-			pats[ti] = patterns[tracks[bi][ti]];
-		for (int si = 0; si < pat_len; ++si)
+		for (int step = 0; step < pat_len; ++step)
 		{
-			if (auto n = pats[0][si]; n != NN)
-				osc1.strike(n, 0.3);
-			if (auto n = pats[1][si]; n != NN)
-				osc2.strike(n, 0.3);
-			if (!(si & 3))
-				drum1.strike(NN + 48, 0.7);
-			osc1.render(step_buffer);
-			for (int i = 0; i < beat_len; ++i) out[i] = step_buffer[i];
-			osc2.render(step_buffer);
-			for (int i = 0; i < beat_len; ++i) out[i] += step_buffer[i];
-			drum1.render(out);
+			for (int ti = 0; ti < track_count; ++ti)
+				if (auto n = melody::patterns[tracks[bi][ti]][step]; n != note::none)
+					track_instrument[ti]->strike(n, track_gain[ti]);
 
-			out += beat_len;
+			for (int sample = 0; sample < beat_len; ++sample, ++out)
+			{
+				fixed mix = 0;
+				for (int ti = 0; ti < track_count; ++ti)
+					mix += track_instrument[ti]->sample();
+				*out = float(master_lopass.filter(mix));
+			}
 		}
 	}
 

@@ -25,4 +25,12 @@
   <ItemGroup>
     <Natvis Include="lyd.natvis" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="fixed.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lyd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>

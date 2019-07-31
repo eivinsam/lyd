@@ -88,6 +88,7 @@
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
       <SupportJustMyCode>false</SupportJustMyCode>
       <CallingConvention>FastCall</CallingConvention>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
     </ClCompile>
     <Link>
       <AdditionalDependencies>Winmm.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -119,6 +120,7 @@
       <CallingConvention>FastCall</CallingConvention>
       <OmitFramePointers>true</OmitFramePointers>
       <ExceptionHandling>false</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -147,6 +149,10 @@
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="lyd.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="fixed.h" />
+    <ClInclude Include="lyd.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
